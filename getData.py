@@ -31,17 +31,37 @@ def getData():
         os.makedirs('stock_csv')
 
     for ticker in tickers:
-        if not os.path.exists('stock_dfs/{}.csv'.format(ticker)):
+        if not os.path.exists('stock_csv/{}.csv'.format(ticker)):
             stockJSON = requests.get("https://api.iextrading.com/1.0/stock/{}/chart/1y".format(ticker)).json() #IEX API
 
             with open("{}.json".format(ticker), 'w') as outfile:
                 json.dump(stockJSON, outfile)
             
             stockDF = pd.read_json("{}.json".format(ticker))
-            dir_path = os.path.dirname(os.path.realpath(__file__)) + "\\stock_dfs\\{}.csv".format(ticker)
-            stockDF.to_csv(dir_path)
+            stockDF.to_csv('stock_csv\\{}.csv'.format(ticker))
             print(ticker)
         else:
             print("Already have {}".format(ticker))
 
 #getData()
+
+def compile_data():
+    with open("sp500tickers.pickle", 'rb') as f:
+        tickers = pickle.load(f)
+
+    main_df = pd.DataFrame()
+    
+    for count, ticker in enumerate(tickers):
+        df = pd.read_csv('stock_csv\\{}.csv'.format(ticker))
+        df.rename(columns = {'close' : ticker}, inplace = True)
+        df.drop(columns = ['change', 'changeOverTime', 'changePercent', 'date', 'high', 'label', 'low', 'open', 'unadjustedVolume', 'volume', 'vwap', 'Unnamed: 0'], inplace = True)
+        
+        if main_df.empty:
+            main_df = df
+        else:
+            main_df = main_df.join(df, how = 'outer')
+
+    print(main_df.head())
+    main_df.to_csv('sp500_joined_closes.csv')
+
+#compile_data()
