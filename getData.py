@@ -46,7 +46,7 @@ def getData():
 #getData()
 
 def calcResult(df, index):
-    pctChange = (df.at[index, 'close'] - df.at[index + 7, 'close']) / df.at[index, 'close'] * 100
+    pctChange = (df.at[index, 'close'] - df.at[index + 10, 'close']) / df.at[index, 'close'] * 100
     if pctChange >= 2:
         return 1
     elif pctChange <= -2:
@@ -54,50 +54,51 @@ def calcResult(df, index):
     else:
         return 0
 
-def calcMA_DIFF(df, index, shortLength, longLength):
-    shortMA = 0
-    longMA = 0
-
-    for i in range (1, shortLength + 1):
-        shortMA += df.at[index-i, 'close']
-
-    for i in range (1, longLength + 1):
-        longMA += df.at[index-i, 'close']
+def calcMA(df, index, periodLength):
     
-    return (shortMA / shortLength) - (longMA / longLength)
+    simpleMA = 0
 
+    for i in range (1, periodLength + 1):
+        simpleMA += df.at[index-i, 'close']
+
+    return simpleMA / periodLength
+
+def compile_data_oneStock(ticker):
+    df = pd.read_csv('stock_csv\\{}.csv'.format(ticker))
+    df.drop(columns = ['change', 'changeOverTime', 'changePercent', 'date', 'high', 'label', 'low', 'open', 'unadjustedVolume', 'volume', 'vwap', 'Unnamed: 0'], inplace = True)
+    
+    columnList = ["close", "10D_SMA", "20D_SMA", "30D_SMA", "RESULT"]
+    stockDataFrame = pd.DataFrame(columns = columnList)
+
+    for index, row in df.iterrows():
+        if index <= 41 or index >= 235:
+            continue
+
+        try:
+            df.at[index + 10, 'close']
+        except KeyError:
+            break
+
+        valueList = [row['close'], calcMA(df, index, 10), calcMA(df, index, 20), calcMA(df, index, 30), calcResult(df, index)]
+        
+        dayDataFrame = pd.DataFrame(columns = columnList)
+        dayDataFrame.loc["{}_{}".format(ticker, index)] = valueList
+        
+        stockDataFrame = stockDataFrame.append(dayDataFrame)
+    
+    return stockDataFrame
 
 def compile_data():
     with open("sp500tickers.pickle", 'rb') as f:
         tickers = pickle.load(f)
 
-    columnList = ["close", "10_20_MADIFF", "10_40_MADIFF", "RESULT"]
+    columnList = ["close", "10D_SMA", "20D_SMA", "30D_SMA", "RESULT"]
 
     main_df = pd.DataFrame(columns = columnList)
     
     for count, ticker in enumerate(tickers):
-        df = pd.read_csv('stock_csv\\{}.csv'.format(ticker))
-        df.drop(columns = ['change', 'changeOverTime', 'changePercent', 'date', 'high', 'label', 'low', 'open', 'unadjustedVolume', 'volume', 'vwap', 'Unnamed: 0'], inplace = True)
-        
-        stockDataFrame = pd.DataFrame(columns = columnList)
-
-        for index, row in df.iterrows():
-            if index <= 41 or index >= 240:
-                continue
-
-            try:
-                df.at[index + 7, 'close']
-            except KeyError:
-                break
-
-            valueList = [row['close'], calcMA_DIFF(df, index, 10, 20), calcMA_DIFF(df, index, 10, 40), calcResult(df, index)]
-            
-            dayDataFrame = pd.DataFrame(columns = columnList)
-            dayDataFrame.loc["{}_{}".format(ticker, index)] = valueList
-            
-            stockDataFrame = stockDataFrame.append(dayDataFrame)
-
-        main_df = main_df.append(stockDataFrame, sort = False)
+        main_df = main_df.append(compile_data_oneStock(ticker))
+        print(ticker)
 
     main_df.to_csv('compiledData.csv')
 
